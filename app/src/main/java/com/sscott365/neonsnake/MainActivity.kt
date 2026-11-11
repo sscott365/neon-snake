@@ -1,15 +1,16 @@
 package com.sscott365.neonsnake
 
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
 import android.widget.Button
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var gameView: SnakeGameView
     private lateinit var scoreText: TextView
-    private lateinit var restartButton: Button
+    private lateinit var statusText: TextView
+    private lateinit var actionButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -17,20 +18,26 @@ class MainActivity : AppCompatActivity() {
 
         gameView = findViewById(R.id.snakeGameView)
         scoreText = findViewById(R.id.scoreText)
-        restartButton = findViewById(R.id.restartButton)
+        statusText = findViewById(R.id.statusText)
+        actionButton = findViewById(R.id.actionButton)
+
+        scoreText.text = "Score: 0"
+        statusText.text = "Tap start to play"
+        actionButton.text = "Start Game"
 
         gameView.onScoreChange = { score ->
             scoreText.text = "Score: $score"
         }
 
         gameView.onGameOver = {
-            scoreText.text = "Game Over - Score: ${gameView.score}"
+            statusText.text = "Game Over"
+            actionButton.text = "Play Again"
         }
 
-        restartButton.setOnClickListener {
+        actionButton.setOnClickListener {
             gameView.startGame()
+            statusText.text = "Swipe to move"
+            actionButton.text = "Restart Game"
         }
-
-        gameView.startGame()
     }
 }

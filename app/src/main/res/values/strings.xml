@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Neon Snake</string>
+    <string name="start_game">Start Game</string>
+    <string name="restart_game">Restart Game</string>
+    <string name="status_ready">Tap start to play</string>
+    <string name="status_move">Swipe to move</string>
 </resources>

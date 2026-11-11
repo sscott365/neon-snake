@@ -4,6 +4,9 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -25,27 +28,33 @@ class SnakeGameView @JvmOverloads constructor(
         private set
     var onScoreChange: ((Int) -> Unit)? = null
     var onGameOver: (() -> Unit)? = null
+    var isRunning: Boolean = false
+        private set
 
     private val gridSize = 18
     private var snake = mutableListOf<Cell>()
     private var food = Cell(10, 10)
     private var direction = Direction.RIGHT
     private var nextDirection = Direction.RIGHT
-    private var running = false
+    private var started = false
     private var lastTick = 0L
-    private val tickMs = 170L
+    private val tickMs = 145L
     private val handler = Handler(Looper.getMainLooper())
+    private val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+
+    private var touchStartX = 0f
+    private var touchStartY = 0f
 
     private val loop = object : Runnable {
         override fun run() {
-            if (!running) return
+            if (!isRunning) return
             val now = SystemClock.uptimeMillis()
             if (now - lastTick >= tickMs) {
                 updateGame()
                 lastTick = now
                 invalidate()
             }
-            if (running) handler.postDelayed(this, 16L)
+            if (isRunning) handler.postDelayed(this, 16L)
         }
     }
 
@@ -59,16 +68,23 @@ class SnakeGameView @JvmOverloads constructor(
         color = Color.rgb(42, 53, 82)
         strokeWidth = 1f
     }
-    private val messagePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
+    private val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(124, 255, 178)
         textAlign = Paint.Align.CENTER
-        textSize = 48f
+        textSize = 52f
         typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+    private val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(198, 201, 255)
+        textAlign = Paint.Align.CENTER
+        textSize = 24f
+        typeface = android.graphics.Typeface.DEFAULT
     }
 
     init {
         isFocusable = true
         setBackgroundColor(Color.rgb(11, 16, 32))
+        isClickable = true
     }
 
     fun startGame() {
@@ -77,39 +93,50 @@ class SnakeGameView @JvmOverloads constructor(
         direction = Direction.RIGHT
         nextDirection = Direction.RIGHT
         score = 0
-        running = true
+        started = true
+        isRunning = true
         lastTick = SystemClock.uptimeMillis()
         spawnFood()
         onScoreChange?.invoke(score)
-        handler.post(loop)
         invalidate()
+        handler.post(loop)
     }
 
     override fun onDetachedFromWindow() {
         handler.removeCallbacks(loop)
+        toneGenerator.release()
         super.onDetachedFromWindow()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (!running) return true
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> return true
+        if (!started) return true
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                touchStartX = event.x
+                touchStartY = event.y
+                return true
+            }
             MotionEvent.ACTION_UP -> {
-                val dx = event.x - width / 2f
-                val dy = event.y - height / 2f
-                nextDirection = if (abs(dx) > abs(dy)) {
-                    if (dx >= 0 && direction != Direction.LEFT) Direction.RIGHT
-                    else if (dx < 0 && direction != Direction.RIGHT) Direction.LEFT
-                    else nextDirection
-                } else {
-                    if (dy >= 0 && direction != Direction.UP) Direction.DOWN
-                    else if (dy < 0 && direction != Direction.DOWN) Direction.UP
-                    else nextDirection
+                if (!isRunning) return true
+                val dx = event.x - touchStartX
+                val dy = event.y - touchStartY
+                val horizontal = abs(dx) > abs(dy)
+
+                if (abs(dx) < 24f && abs(dy) < 24f) {
+                    return true
+                }
+
+                nextDirection = when {
+                    horizontal && dx > 0 && direction != Direction.LEFT -> Direction.RIGHT
+                    horizontal && dx < 0 && direction != Direction.RIGHT -> Direction.LEFT
+                    !horizontal && dy > 0 && direction != Direction.UP -> Direction.DOWN
+                    !horizontal && dy < 0 && direction != Direction.DOWN -> Direction.UP
+                    else -> nextDirection
                 }
                 return true
             }
         }
-        return true
+        return super.onTouchEvent(event)
     }
 
     private fun updateGame() {
@@ -126,7 +153,8 @@ class SnakeGameView @JvmOverloads constructor(
         val bodyToCheck = if (grows) snake else snake.dropLast(1)
 
         if (newHead in bodyToCheck) {
-            running = false
+            isRunning = false
+            playGameOverSound()
             onGameOver?.invoke()
             invalidate()
             return
@@ -136,6 +164,7 @@ class SnakeGameView @JvmOverloads constructor(
         if (grows) {
             score++
             onScoreChange?.invoke(score)
+            playFoodSound()
             spawnFood()
         } else {
             snake.removeAt(snake.lastIndex)
@@ -150,6 +179,14 @@ class SnakeGameView @JvmOverloads constructor(
         if (freeCells.isNotEmpty()) {
             food = freeCells[Random.nextInt(freeCells.size)]
         }
+    }
+
+    private fun playFoodSound() {
+        toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, 90)
+    }
+
+    private fun playGameOverSound() {
+        toneGenerator.startTone(ToneGenerator.TONE_PROP_NACK, 180)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -184,8 +221,16 @@ class SnakeGameView @JvmOverloads constructor(
         snake.forEach { drawCell(it, snakePaint) }
         drawCell(food, foodPaint)
 
-        if (!running) {
-            canvas.drawText("Game Over", width / 2f, height / 2f, messagePaint)
+        if (!started) {
+            canvas.drawText("Neon Snake", width / 2f, height / 2f - 12f, titlePaint)
+            canvas.drawText("Tap Start", width / 2f, height / 2f + 28f, subtitlePaint)
+            return
+        }
+
+        if (!isRunning) {
+            canvas.drawText("Game Over", width / 2f, height / 2f - 12f, titlePaint)
+            canvas.drawText("Tap restart to play again", width / 2f, height / 2f + 28f, subtitlePaint)
         }
     }
 }
+
