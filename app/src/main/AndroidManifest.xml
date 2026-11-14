@@ -8,6 +8,11 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.NeonSnake">
+
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-7730685857088910~3888442295" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
