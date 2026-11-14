@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var leaderboardScreen: LinearLayout
     private lateinit var settingsScreen: LinearLayout
     private lateinit var localScoresText: TextView
+    private lateinit var playerNameInput: EditText
     private lateinit var leaderboard: LocalLeaderboard
     private lateinit var onlineLeaderboard: OnlineLeaderboard
     private val playerPreferences by lazy {
@@ -56,10 +57,12 @@ class MainActivity : AppCompatActivity() {
         leaderboardScreen = findViewById(R.id.leaderboardScreen)
         settingsScreen = findViewById(R.id.settingsScreen)
         localScoresText = findViewById(R.id.localScoresText)
+        playerNameInput = findViewById(R.id.playerNameInput)
         gameView = findViewById(R.id.snakeGameView)
         scoreText = findViewById(R.id.scoreText)
         statusText = findViewById(R.id.statusText)
 
+        playerNameInput.setText(playerPreferences.getString(KEY_PLAYER_NAME, ""))
         applySavedSettings()
         configureSettingsControls()
 
@@ -70,6 +73,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.restartButton).setOnClickListener { startGame() }
         findViewById<Button>(R.id.leaderboardHomeButton).setOnClickListener { showHome() }
         findViewById<Button>(R.id.settingsHomeButton).setOnClickListener { showHome() }
+        findViewById<Button>(R.id.saveNameButton).setOnClickListener { savePlayerName() }
+        findViewById<Button>(R.id.resetLocalScoresButton).setOnClickListener { resetLocalScores() }
+        findViewById<Button>(R.id.resetOnlineBestButton).setOnClickListener { resetOnlineBest() }
         findViewById<Button>(R.id.worldLeaderboardButton).setOnClickListener {
             showWorldwideLeaderboard()
         }
@@ -81,7 +87,12 @@ class MainActivity : AppCompatActivity() {
             updateLocalScores()
 
             if (finalScore > 0) {
-                promptForPlayerName(finalScore)
+                val savedName = currentPlayerName()
+                if (savedName.isBlank()) {
+                    promptForPlayerName(finalScore)
+                } else {
+                    uploadScore(finalScore, savedName)
+                }
             } else {
                 statusText.text = "Game over — score saved locally"
             }
@@ -116,6 +127,35 @@ class MainActivity : AppCompatActivity() {
         soundSwitch.setOnCheckedChangeListener { _, checked ->
             settingsPreferences.edit().putBoolean(KEY_SOUND_ENABLED, checked).apply()
             applySavedSettings()
+        }
+    }
+
+    private fun savePlayerName() {
+        val cleaned = playerNameInput.text.toString().trim()
+        if (cleaned.isBlank()) {
+            playerNameInput.error = "Enter a name"
+            return
+        }
+        val finalName = cleaned.take(MAX_PLAYER_NAME_LENGTH)
+        playerPreferences.edit().putString(KEY_PLAYER_NAME, finalName).apply()
+        playerNameInput.setText(finalName)
+        Toast.makeText(this, "Player name saved", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun resetLocalScores() {
+        leaderboard.clear()
+        updateLocalScores()
+        Toast.makeText(this, "Local scores cleared", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun resetOnlineBest() {
+        onlineLeaderboard.resetMyBestScore { removed, error ->
+            if (error != null) {
+                Toast.makeText(this, "Couldn't reset your online best", Toast.LENGTH_LONG).show()
+                android.util.Log.w("NeonSnake", "Could not reset online best score", error)
+                return@resetMyBestScore
+            }
+            Toast.makeText(this, if (removed) "Online best score removed" else "No online score to remove", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -167,7 +207,7 @@ class MainActivity : AppCompatActivity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
             filters = arrayOf(InputFilter.LengthFilter(MAX_PLAYER_NAME_LENGTH))
             setSingleLine(true)
-            setText(playerPreferences.getString(KEY_PLAYER_NAME, ""))
+            setText(currentPlayerName())
             setSelection(text.length)
         }
         val inputContainer = LinearLayout(this).apply {
@@ -191,18 +231,27 @@ class MainActivity : AppCompatActivity() {
                     nameInput.error = "Enter a name"
                     return@setOnClickListener
                 }
-                playerPreferences.edit().putString(KEY_PLAYER_NAME, playerName).apply()
+                savePlayerName(playerName)
                 dialog.dismiss()
                 uploadScore(score, playerName)
             }
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
                 dialog.dismiss()
-                val savedName = playerPreferences.getString(KEY_PLAYER_NAME, null)
-                uploadScore(score, savedName ?: "Snake Player")
+                val savedName = currentPlayerName()
+                uploadScore(score, savedName.ifBlank { "Snake Player" })
             }
         }
         dialog.show()
     }
+
+    private fun savePlayerName(playerName: String) {
+        val finalName = playerName.trim().take(MAX_PLAYER_NAME_LENGTH)
+        if (finalName.isBlank()) return
+        playerPreferences.edit().putString(KEY_PLAYER_NAME, finalName).apply()
+        playerNameInput.setText(finalName)
+    }
+
+    private fun currentPlayerName(): String = playerPreferences.getString(KEY_PLAYER_NAME, "")?.trim().orEmpty()
 
     private fun uploadScore(score: Int, playerName: String) {
         statusText.text = "Game over — saving score online…"

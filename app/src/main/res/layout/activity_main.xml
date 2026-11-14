@@ -192,6 +192,32 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="PLAYER NAME"
+            android:textColor="#C6C9FF"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/playerNameInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Your leaderboard name"
+            android:inputType="textCapWords"
+            android:maxLength="20"
+            android:textColor="#F5F7FF"
+            android:textColorHint="#9DA3C7" />
+
+        <Button
+            android:id="@+id/saveNameButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Save name" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:layout_marginTop="28dp"
             android:text="SNAKE COLOR"
             android:textColor="#C6C9FF"
@@ -211,11 +237,25 @@
             android:text="Sound effects"
             android:textColor="#F5F7FF" />
 
+        <Button
+            android:id="@+id/resetLocalScoresButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="Reset local scores" />
+
+        <Button
+            android:id="@+id/resetOnlineBestButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Reset online best" />
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Settings are saved automatically on this device. Game speed is the same for everyone."
+            android:text="Settings are saved automatically on this device. Game speed stays the same for everyone."
             android:textColor="#9DA3C7"
             android:textSize="14sp" />
 

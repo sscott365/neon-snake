@@ -3,13 +3,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /leaderboard/{userId} {
-      // Anyone can view leaderboard scores. Only the authenticated owner
-      // can create or improve their own anonymous-player entry.
+      // Anyone can view leaderboard scores. Only the authenticated owner can
+      // create, update, or delete their own anonymous-player entry.
       allow read: if true;
       allow create: if isValidScore(userId);
       allow update: if isValidScore(userId)
         && request.resource.data.score >= resource.data.score;
-      allow delete: if false;
+      allow delete: if request.auth != null
+        && request.auth.uid == userId
+        && resource.data.uid == userId;
 
       function isValidScore(uid) {
         return request.auth != null

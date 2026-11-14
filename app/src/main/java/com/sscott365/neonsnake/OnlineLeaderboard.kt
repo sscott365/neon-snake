@@ -16,7 +16,6 @@ class OnlineLeaderboard {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
 
-    /** Saves the player's display name and keeps their best score. */
     fun submitScore(
         score: Int,
         playerName: String,
@@ -73,6 +72,18 @@ class OnlineLeaderboard {
                 callback(entries, null)
             }
             .addOnFailureListener { error -> callback(null, error) }
+    }
+
+    fun resetMyBestScore(callback: (removed: Boolean, error: Exception?) -> Unit) {
+        val currentUser = auth.currentUser ?: run {
+            callback(false, IllegalStateException("No signed-in user"))
+            return
+        }
+        firestore.collection("leaderboard")
+            .document(currentUser.uid)
+            .delete()
+            .addOnSuccessListener { callback(true, null) }
+            .addOnFailureListener { error -> callback(false, error) }
     }
 
     private fun withSignedInUser(callback: (uid: String?, error: Exception?) -> Unit) {
