@@ -153,7 +153,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Online leaderboard coming after cloud setup"
+            android:text="Scores are shared online using an anonymous player ID."
             android:textColor="#9DA3C7"
             android:textSize="14sp" />
 

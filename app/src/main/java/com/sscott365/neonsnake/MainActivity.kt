@@ -1,6 +1,7 @@
 package com.sscott365.neonsnake
 
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -17,12 +18,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var leaderboardScreen: LinearLayout
     private lateinit var localScoresText: TextView
     private lateinit var leaderboard: LocalLeaderboard
+    private lateinit var onlineLeaderboard: OnlineLeaderboard
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         leaderboard = LocalLeaderboard(this)
+        onlineLeaderboard = OnlineLeaderboard()
         homeScreen = findViewById(R.id.homeScreen)
         gameScreen = findViewById(R.id.gameScreen)
         leaderboardScreen = findViewById(R.id.leaderboardScreen)
@@ -37,42 +40,57 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.restartButton).setOnClickListener { startGame() }
         findViewById<Button>(R.id.leaderboardHomeButton).setOnClickListener { showHome() }
         findViewById<Button>(R.id.worldLeaderboardButton).setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("Worldwide leaderboard")
-                .setMessage("Online scores are not connected yet. A cloud leaderboard service and account setup are needed before scores can be shared worldwide.")
-                .setPositiveButton("OK", null)
-                .show()
+            showWorldwideLeaderboard()
         }
 
         gameView.onScoreChange = { score -> scoreText.text = "Score: $score" }
         gameView.onGameOver = {
-            leaderboard.record(gameView.score)
-            statusText.text = "Game over — score saved locally"
+            val finalScore = gameView.score
+            leaderboard.record(finalScore)
+            statusText.text = if (finalScore > 0) {
+                "Game over — saving score online…"
+            } else {
+                "Game over — score saved locally"
+            }
             updateLocalScores()
+
+            if (finalScore > 0) {
+                onlineLeaderboard.submitScore(finalScore) { uploaded, newBest, error ->
+                    if (isFinishing || isDestroyed) return@submitScore
+                    statusText.text = when {
+                        !uploaded -> "Game over — saved locally; online upload failed"
+                        newBest -> "Game over — best score saved online"
+                        else -> "Game over — saved locally; online best kept"
+                    }
+                    if (!uploaded && error != null) {
+                        android.util.Log.w("NeonSnake", "Could not upload leaderboard score", error)
+                    }
+                }
+            }
         }
         showHome()
     }
 
     private fun startGame() {
-        homeScreen.visibility = android.view.View.GONE
-        leaderboardScreen.visibility = android.view.View.GONE
-        gameScreen.visibility = android.view.View.VISIBLE
+        homeScreen.visibility = View.GONE
+        leaderboardScreen.visibility = View.GONE
+        gameScreen.visibility = View.VISIBLE
         statusText.text = "Swipe to move"
         gameView.startGame()
     }
 
     private fun showHome() {
         gameView.stopGame()
-        gameScreen.visibility = android.view.View.GONE
-        leaderboardScreen.visibility = android.view.View.GONE
-        homeScreen.visibility = android.view.View.VISIBLE
+        gameScreen.visibility = View.GONE
+        leaderboardScreen.visibility = View.GONE
+        homeScreen.visibility = View.VISIBLE
     }
 
     private fun showLeaderboard() {
         updateLocalScores()
-        homeScreen.visibility = android.view.View.GONE
-        gameScreen.visibility = android.view.View.GONE
-        leaderboardScreen.visibility = android.view.View.VISIBLE
+        homeScreen.visibility = View.GONE
+        gameScreen.visibility = View.GONE
+        leaderboardScreen.visibility = View.VISIBLE
     }
 
     private fun updateLocalScores() {
@@ -84,11 +102,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showWorldwideLeaderboard() {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Worldwide leaderboard")
+            .setMessage("Loading online scores…")
+            .setPositiveButton("OK", null)
+            .create()
+        dialog.show()
+
+        onlineLeaderboard.loadTopScores { entries, error ->
+            if (isFinishing || isDestroyed || !dialog.isShowing) return@loadTopScores
+            dialog.setMessage(
+                when {
+                    error != null -> "Couldn't load scores. Check your internet connection and Firebase setup, then try again."
+                    entries.isNullOrEmpty() -> "No worldwide scores yet. Be the first to set one!"
+                    else -> entries.mapIndexed { index, entry ->
+                        "${index + 1}.  ${entry.name} — ${entry.score}"
+                    }.joinToString("\n")
+                }
+            )
+            if (error != null) {
+                android.util.Log.w("NeonSnake", "Could not load worldwide leaderboard", error)
+            }
+        }
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         when {
-            gameScreen.visibility == android.view.View.VISIBLE -> showHome()
-            leaderboardScreen.visibility == android.view.View.VISIBLE -> showHome()
+            gameScreen.visibility == View.VISIBLE -> showHome()
+            leaderboardScreen.visibility == View.VISIBLE -> showHome()
             else -> super.onBackPressed()
         }
     }
