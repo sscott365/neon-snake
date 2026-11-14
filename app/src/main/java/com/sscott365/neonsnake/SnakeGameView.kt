@@ -38,6 +38,7 @@ class SnakeGameView @JvmOverloads constructor(
     private var started = false
     private var lastTick = 0L
     private val tickMs = 145L
+    private var soundEnabled = true
     private val handler = Handler(Looper.getMainLooper())
     private val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
     private var touchStartX = 0f
@@ -78,6 +79,13 @@ class SnakeGameView @JvmOverloads constructor(
         isFocusable = true
         isClickable = true
         setBackgroundColor(Color.rgb(11, 16, 32))
+    }
+
+    fun applyGameSettings(snakeColor: Int, soundEnabled: Boolean) {
+        snakePaint.color = snakeColor
+        titlePaint.color = snakeColor
+        this.soundEnabled = soundEnabled
+        invalidate()
     }
 
     fun startGame() {
@@ -147,7 +155,7 @@ class SnakeGameView @JvmOverloads constructor(
         val bodyToCheck = if (grows) snake else snake.dropLast(1)
         if (newHead in bodyToCheck) {
             isRunning = false
-            toneGenerator.startTone(ToneGenerator.TONE_PROP_NACK, 180)
+            if (soundEnabled) toneGenerator.startTone(ToneGenerator.TONE_PROP_NACK, 180)
             onGameOver?.invoke()
             invalidate()
             return
@@ -156,7 +164,7 @@ class SnakeGameView @JvmOverloads constructor(
         if (grows) {
             score++
             onScoreChange?.invoke(score)
-            toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, 90)
+            if (soundEnabled) toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, 90)
             spawnFood()
         } else {
             snake.removeAt(snake.lastIndex)

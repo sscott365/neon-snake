@@ -1,16 +1,21 @@
 package com.sscott365.neonsnake
 
+import android.graphics.Color
 import android.os.Bundle
 import android.text.InputFilter
 import android.text.InputType
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 
 class MainActivity : AppCompatActivity() {
 
@@ -20,12 +25,25 @@ class MainActivity : AppCompatActivity() {
     private lateinit var homeScreen: LinearLayout
     private lateinit var gameScreen: LinearLayout
     private lateinit var leaderboardScreen: LinearLayout
+    private lateinit var settingsScreen: LinearLayout
     private lateinit var localScoresText: TextView
     private lateinit var leaderboard: LocalLeaderboard
     private lateinit var onlineLeaderboard: OnlineLeaderboard
     private val playerPreferences by lazy {
         getSharedPreferences("neon_snake_player", MODE_PRIVATE)
     }
+    private val settingsPreferences by lazy {
+        getSharedPreferences("neon_snake_settings", MODE_PRIVATE)
+    }
+
+    private val snakeColorNames = listOf("Neon Mint", "Electric Cyan", "Sunshine", "Hot Pink", "Purple")
+    private val snakeColors = intArrayOf(
+        Color.rgb(124, 255, 178),
+        Color.rgb(77, 238, 234),
+        Color.rgb(255, 230, 109),
+        Color.rgb(255, 107, 157),
+        Color.rgb(179, 136, 255)
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,16 +54,22 @@ class MainActivity : AppCompatActivity() {
         homeScreen = findViewById(R.id.homeScreen)
         gameScreen = findViewById(R.id.gameScreen)
         leaderboardScreen = findViewById(R.id.leaderboardScreen)
+        settingsScreen = findViewById(R.id.settingsScreen)
         localScoresText = findViewById(R.id.localScoresText)
         gameView = findViewById(R.id.snakeGameView)
         scoreText = findViewById(R.id.scoreText)
         statusText = findViewById(R.id.statusText)
 
+        applySavedSettings()
+        configureSettingsControls()
+
         findViewById<Button>(R.id.startButton).setOnClickListener { startGame() }
         findViewById<Button>(R.id.homeLeaderboardButton).setOnClickListener { showLeaderboard() }
+        findViewById<Button>(R.id.homeSettingsButton).setOnClickListener { showSettings() }
         findViewById<Button>(R.id.gameHomeButton).setOnClickListener { showHome() }
         findViewById<Button>(R.id.restartButton).setOnClickListener { startGame() }
         findViewById<Button>(R.id.leaderboardHomeButton).setOnClickListener { showHome() }
+        findViewById<Button>(R.id.settingsHomeButton).setOnClickListener { showHome() }
         findViewById<Button>(R.id.worldLeaderboardButton).setOnClickListener {
             showWorldwideLeaderboard()
         }
@@ -65,9 +89,40 @@ class MainActivity : AppCompatActivity() {
         showHome()
     }
 
+    private fun applySavedSettings() {
+        val colorIndex = settingsPreferences.getInt(KEY_SNAKE_COLOR, 0).coerceIn(snakeColors.indices)
+        val soundEnabled = settingsPreferences.getBoolean(KEY_SOUND_ENABLED, true)
+        gameView.applyGameSettings(snakeColors[colorIndex], soundEnabled)
+    }
+
+    private fun configureSettingsControls() {
+        val colorSpinner = findViewById<Spinner>(R.id.snakeColorSpinner)
+        colorSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, snakeColorNames)
+            .also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        colorSpinner.setSelection(
+            settingsPreferences.getInt(KEY_SNAKE_COLOR, 0).coerceIn(snakeColors.indices),
+            false
+        )
+        colorSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                settingsPreferences.edit().putInt(KEY_SNAKE_COLOR, position).apply()
+                applySavedSettings()
+            }
+        }
+
+        val soundSwitch = findViewById<SwitchCompat>(R.id.soundSwitch)
+        soundSwitch.isChecked = settingsPreferences.getBoolean(KEY_SOUND_ENABLED, true)
+        soundSwitch.setOnCheckedChangeListener { _, checked ->
+            settingsPreferences.edit().putBoolean(KEY_SOUND_ENABLED, checked).apply()
+            applySavedSettings()
+        }
+    }
+
     private fun startGame() {
         homeScreen.visibility = View.GONE
         leaderboardScreen.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
         gameScreen.visibility = View.VISIBLE
         statusText.text = "Swipe to move"
         gameView.startGame()
@@ -77,6 +132,7 @@ class MainActivity : AppCompatActivity() {
         gameView.stopGame()
         gameScreen.visibility = View.GONE
         leaderboardScreen.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
         homeScreen.visibility = View.VISIBLE
     }
 
@@ -84,7 +140,16 @@ class MainActivity : AppCompatActivity() {
         updateLocalScores()
         homeScreen.visibility = View.GONE
         gameScreen.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
         leaderboardScreen.visibility = View.VISIBLE
+    }
+
+    private fun showSettings() {
+        gameView.stopGame()
+        homeScreen.visibility = View.GONE
+        gameScreen.visibility = View.GONE
+        leaderboardScreen.visibility = View.GONE
+        settingsScreen.visibility = View.VISIBLE
     }
 
     private fun updateLocalScores() {
@@ -191,6 +256,7 @@ class MainActivity : AppCompatActivity() {
         when {
             gameScreen.visibility == View.VISIBLE -> showHome()
             leaderboardScreen.visibility == View.VISIBLE -> showHome()
+            settingsScreen.visibility == View.VISIBLE -> showHome()
             else -> super.onBackPressed()
         }
     }
@@ -198,5 +264,7 @@ class MainActivity : AppCompatActivity() {
     private companion object {
         const val MAX_PLAYER_NAME_LENGTH = 20
         const val KEY_PLAYER_NAME = "player_name"
+        const val KEY_SNAKE_COLOR = "snake_color"
+        const val KEY_SOUND_ENABLED = "sound_enabled"
     }
 }
