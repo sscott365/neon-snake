@@ -1,10 +1,14 @@
 package com.sscott365.neonsnake
 
 import android.os.Bundle
+import android.text.InputFilter
+import android.text.InputType
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 
@@ -19,6 +23,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var localScoresText: TextView
     private lateinit var leaderboard: LocalLeaderboard
     private lateinit var onlineLeaderboard: OnlineLeaderboard
+    private val playerPreferences by lazy {
+        getSharedPreferences("neon_snake_player", MODE_PRIVATE)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,25 +54,12 @@ class MainActivity : AppCompatActivity() {
         gameView.onGameOver = {
             val finalScore = gameView.score
             leaderboard.record(finalScore)
-            statusText.text = if (finalScore > 0) {
-                "Game over — saving score online…"
-            } else {
-                "Game over — score saved locally"
-            }
             updateLocalScores()
 
             if (finalScore > 0) {
-                onlineLeaderboard.submitScore(finalScore) { uploaded, newBest, error ->
-                    if (isFinishing || isDestroyed) return@submitScore
-                    statusText.text = when {
-                        !uploaded -> "Game over — saved locally; online upload failed"
-                        newBest -> "Game over — best score saved online"
-                        else -> "Game over — saved locally; online best kept"
-                    }
-                    if (!uploaded && error != null) {
-                        android.util.Log.w("NeonSnake", "Could not upload leaderboard score", error)
-                    }
-                }
+                promptForPlayerName(finalScore)
+            } else {
+                statusText.text = "Game over — score saved locally"
             }
         }
         showHome()
@@ -102,6 +96,69 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun promptForPlayerName(score: Int) {
+        val nameInput = EditText(this).apply {
+            hint = "Your leaderboard name"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+            filters = arrayOf(InputFilter.LengthFilter(MAX_PLAYER_NAME_LENGTH))
+            setSingleLine(true)
+            setText(playerPreferences.getString(KEY_PLAYER_NAME, ""))
+            setSelection(text.length)
+        }
+        val inputContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+            addView(nameInput)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Game over — $score points")
+            .setMessage("Choose the name shown on the worldwide leaderboard.")
+            .setView(inputContainer)
+            .setPositiveButton("Save score", null)
+            .setNegativeButton("Not now", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val playerName = nameInput.text.toString().trim()
+                if (playerName.isBlank()) {
+                    nameInput.error = "Enter a name"
+                    return@setOnClickListener
+                }
+                playerPreferences.edit().putString(KEY_PLAYER_NAME, playerName).apply()
+                dialog.dismiss()
+                uploadScore(score, playerName)
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+                dialog.dismiss()
+                val savedName = playerPreferences.getString(KEY_PLAYER_NAME, null)
+                uploadScore(score, savedName ?: "Snake Player")
+            }
+        }
+        dialog.show()
+    }
+
+    private fun uploadScore(score: Int, playerName: String) {
+        statusText.text = "Game over — saving score online…"
+        onlineLeaderboard.submitScore(score, playerName) { uploaded, newBest, error ->
+            if (isFinishing || isDestroyed) return@submitScore
+            statusText.text = when {
+                !uploaded -> "Game over — saved locally; online upload failed"
+                newBest -> "Game over — best score saved online"
+                else -> "Game over — name and best score saved online"
+            }
+            if (!uploaded) {
+                android.util.Log.w("NeonSnake", "Could not upload leaderboard score", error)
+                Toast.makeText(
+                    this,
+                    "Couldn't upload your score. Check your connection and try again next game.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     private fun showWorldwideLeaderboard() {
         val dialog = AlertDialog.Builder(this)
             .setTitle("Worldwide leaderboard")
@@ -127,6 +184,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         when {
@@ -134,5 +193,10 @@ class MainActivity : AppCompatActivity() {
             leaderboardScreen.visibility == View.VISIBLE -> showHome()
             else -> super.onBackPressed()
         }
+    }
+
+    private companion object {
+        const val MAX_PLAYER_NAME_LENGTH = 20
+        const val KEY_PLAYER_NAME = "player_name"
     }
 }

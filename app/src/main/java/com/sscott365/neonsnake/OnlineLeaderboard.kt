@@ -5,7 +5,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 
-/** A public leaderboard row. The displayed player name is an anonymous label. */
+/** A public leaderboard row. */
 data class OnlineLeaderboardEntry(
     val name: String,
     val score: Int
@@ -16,9 +16,20 @@ class OnlineLeaderboard {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
 
-    fun submitScore(score: Int, callback: (uploaded: Boolean, newBest: Boolean, error: Exception?) -> Unit) {
+    /** Saves the player's display name and keeps their best score. */
+    fun submitScore(
+        score: Int,
+        playerName: String,
+        callback: (uploaded: Boolean, newBest: Boolean, error: Exception?) -> Unit
+    ) {
         if (score <= 0) {
             callback(true, false, null)
+            return
+        }
+
+        val safeName = playerName.trim().take(MAX_NAME_LENGTH)
+        if (safeName.isBlank()) {
+            callback(false, false, IllegalArgumentException("Player name cannot be empty"))
             return
         }
 
@@ -28,25 +39,21 @@ class OnlineLeaderboard {
                 return@withSignedInUser
             }
 
-            val playerName = "Player-${uid.take(6)}"
             val scoreDocument = firestore.collection("leaderboard").document(uid)
             firestore.runTransaction { transaction ->
                 val existing = transaction.get(scoreDocument)
                 val previousBest = existing.getLong("score") ?: 0L
-                if (score.toLong() > previousBest) {
-                    transaction.set(
-                        scoreDocument,
-                        hashMapOf(
-                            "uid" to uid,
-                            "name" to playerName,
-                            "score" to score,
-                            "updatedAt" to FieldValue.serverTimestamp()
-                        )
+                val bestScore = maxOf(previousBest, score.toLong())
+                transaction.set(
+                    scoreDocument,
+                    hashMapOf(
+                        "uid" to uid,
+                        "name" to safeName,
+                        "score" to bestScore,
+                        "updatedAt" to FieldValue.serverTimestamp()
                     )
-                    true
-                } else {
-                    false
-                }
+                )
+                score.toLong() > previousBest
             }.addOnSuccessListener { isNewBest -> callback(true, isNewBest, null) }
                 .addOnFailureListener { error -> callback(false, false, error) }
         }
@@ -78,5 +85,9 @@ class OnlineLeaderboard {
         auth.signInAnonymously()
             .addOnSuccessListener { result -> callback(result.user?.uid, null) }
             .addOnFailureListener { error -> callback(null, error) }
+    }
+
+    private companion object {
+        const val MAX_NAME_LENGTH = 20
     }
 }
