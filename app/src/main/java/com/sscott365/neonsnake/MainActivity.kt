@@ -103,7 +103,8 @@ class MainActivity : AppCompatActivity() {
     private fun applySavedSettings() {
         val colorIndex = settingsPreferences.getInt(KEY_SNAKE_COLOR, 0).coerceIn(snakeColors.indices)
         val soundEnabled = settingsPreferences.getBoolean(KEY_SOUND_ENABLED, true)
-        gameView.applyGameSettings(snakeColors[colorIndex], soundEnabled)
+        val musicEnabled = settingsPreferences.getBoolean(KEY_BACKGROUND_MUSIC, true)
+        gameView.applyGameSettings(snakeColors[colorIndex], soundEnabled, musicEnabled)
     }
 
     private fun configureSettingsControls() {
@@ -126,6 +127,13 @@ class MainActivity : AppCompatActivity() {
         soundSwitch.isChecked = settingsPreferences.getBoolean(KEY_SOUND_ENABLED, true)
         soundSwitch.setOnCheckedChangeListener { _, checked ->
             settingsPreferences.edit().putBoolean(KEY_SOUND_ENABLED, checked).apply()
+            applySavedSettings()
+        }
+
+        val musicSwitch = findViewById<SwitchCompat>(R.id.musicSwitch)
+        musicSwitch.isChecked = settingsPreferences.getBoolean(KEY_BACKGROUND_MUSIC, true)
+        musicSwitch.setOnCheckedChangeListener { _, checked ->
+            settingsPreferences.edit().putBoolean(KEY_BACKGROUND_MUSIC, checked).apply()
             applySavedSettings()
         }
     }
@@ -315,5 +323,6 @@ class MainActivity : AppCompatActivity() {
         const val KEY_PLAYER_NAME = "player_name"
         const val KEY_SNAKE_COLOR = "snake_color"
         const val KEY_SOUND_ENABLED = "sound_enabled"
+        const val KEY_BACKGROUND_MUSIC = "background_music"
     }
 }

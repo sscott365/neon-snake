@@ -237,6 +237,14 @@
             android:text="Sound effects"
             android:textColor="#F5F7FF" />
 
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/musicSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Background music"
+            android:textColor="#F5F7FF" />
+
         <Button
             android:id="@+id/resetLocalScoresButton"
             android:layout_width="match_parent"
@@ -255,7 +263,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Settings are saved automatically on this device. Game speed stays the same for everyone."
+            android:text="Original chiptune-inspired music. Sound effects and colors are saved on this device."
             android:textColor="#9DA3C7"
             android:textSize="14sp" />
 

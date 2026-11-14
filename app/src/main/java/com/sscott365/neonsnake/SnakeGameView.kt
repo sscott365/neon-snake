@@ -4,7 +4,9 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioTrack
 import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
@@ -13,10 +15,70 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.abs
+import kotlin.math.PI
+import kotlin.math.sin
 import kotlin.random.Random
 
 enum class Direction { UP, DOWN, LEFT, RIGHT }
 private data class Cell(val x: Int, val y: Int)
+
+class BackgroundMusicPlayer {
+    @Volatile
+    private var isPlaying = false
+    private var track: AudioTrack? = null
+    private var thread: Thread? = null
+
+    fun start() {
+        if (isPlaying) return
+        val sampleRate = 22050
+        val channelConfig = AudioFormat.CHANNEL_OUT_MONO
+        val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+        val bufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+            ?: return
+        val audioTrack = AudioTrack(
+            AudioManager.STREAM_MUSIC,
+            sampleRate,
+            channelConfig,
+            audioFormat,
+            bufferSize,
+            AudioTrack.MODE_STREAM
+        )
+        track = audioTrack
+        audioTrack.play()
+        isPlaying = true
+
+        val melody = intArrayOf(262, 294, 330, 392, 330, 294, 262, 220)
+        thread = Thread {
+            while (isPlaying) {
+                for (note in melody) {
+                    if (!isPlaying) break
+                    val durationMs = 220L
+                    val samples = (sampleRate * durationMs / 1000.0).toInt()
+                    val phaseStep = (2.0 * PI * note) / sampleRate
+                    val buffer = ShortArray(samples)
+                    for (i in buffer.indices) {
+                        val time = i.toDouble()
+                        val envelope = 1.0 - (i.toDouble() / buffer.size.toDouble())
+                        val wave = if (sin(phaseStep * time) >= 0.0) 1.0 else -1.0
+                        buffer[i] = (wave * 0.18 * envelope * Short.MAX_VALUE).toInt().toShort()
+                    }
+                    audioTrack.write(buffer, 0, buffer.size)
+                }
+            }
+            audioTrack.stop()
+            audioTrack.release()
+        }.apply { isDaemon = true; start() }
+    }
+
+    fun stop() {
+        isPlaying = false
+        thread?.interrupt()
+        track?.stop()
+        track?.release()
+        track = null
+        thread = null
+    }
+}
 
 class SnakeGameView @JvmOverloads constructor(
     context: Context,
@@ -39,8 +101,10 @@ class SnakeGameView @JvmOverloads constructor(
     private var lastTick = 0L
     private val tickMs = 145L
     private var soundEnabled = true
+    private var musicEnabled = true
     private val handler = Handler(Looper.getMainLooper())
     private val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+    private val backgroundMusicPlayer = BackgroundMusicPlayer()
     private var touchStartX = 0f
     private var touchStartY = 0f
 
@@ -81,10 +145,16 @@ class SnakeGameView @JvmOverloads constructor(
         setBackgroundColor(Color.rgb(11, 16, 32))
     }
 
-    fun applyGameSettings(snakeColor: Int, soundEnabled: Boolean) {
+    fun applyGameSettings(snakeColor: Int, soundEnabled: Boolean, musicEnabled: Boolean) {
         snakePaint.color = snakeColor
         titlePaint.color = snakeColor
         this.soundEnabled = soundEnabled
+        this.musicEnabled = musicEnabled
+        if (musicEnabled && isRunning) {
+            backgroundMusicPlayer.start()
+        } else {
+            backgroundMusicPlayer.stop()
+        }
         invalidate()
     }
 
@@ -99,6 +169,7 @@ class SnakeGameView @JvmOverloads constructor(
         lastTick = SystemClock.uptimeMillis()
         spawnFood()
         onScoreChange?.invoke(score)
+        if (musicEnabled) backgroundMusicPlayer.start()
         invalidate()
         handler.post(loop)
     }
@@ -106,11 +177,13 @@ class SnakeGameView @JvmOverloads constructor(
     fun stopGame() {
         isRunning = false
         handler.removeCallbacks(loop)
+        backgroundMusicPlayer.stop()
         invalidate()
     }
 
     override fun onDetachedFromWindow() {
         handler.removeCallbacks(loop)
+        backgroundMusicPlayer.stop()
         toneGenerator.release()
         super.onDetachedFromWindow()
     }
@@ -155,6 +228,7 @@ class SnakeGameView @JvmOverloads constructor(
         val bodyToCheck = if (grows) snake else snake.dropLast(1)
         if (newHead in bodyToCheck) {
             isRunning = false
+            backgroundMusicPlayer.stop()
             if (soundEnabled) toneGenerator.startTone(ToneGenerator.TONE_PROP_NACK, 180)
             onGameOver?.invoke()
             invalidate()
